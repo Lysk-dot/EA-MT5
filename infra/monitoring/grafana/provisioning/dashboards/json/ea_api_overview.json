@@ -1,0 +1,52 @@
+{
+  "title": "EA API Overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Requests /ingest (1m)",
+      "gridPos": {"x":0, "y":0, "w":6, "h":4},
+      "targets": [{
+        "expr": "sum(rate(api_requests_total{endpoint=\"/ingest\"}[1m]))",
+        "legendFormat": "ingest"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Requests /ingest/tick (1m)",
+      "gridPos": {"x":6, "y":0, "w":6, "h":4},
+      "targets": [{
+        "expr": "sum(rate(api_requests_total{endpoint=\"/ingest/tick\"}[1m]))",
+        "legendFormat": "tick"
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Latência (p95) por endpoint",
+      "gridPos": {"x":0, "y":4, "w":12, "h":6},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(api_request_latency_seconds_bucket{endpoint=\"/ingest\"}[5m])) by (le))", "legendFormat": "/ingest"},
+        {"expr": "histogram_quantile(0.95, sum(rate(api_request_latency_seconds_bucket{endpoint=\"/ingest/tick\"}[5m])) by (le))", "legendFormat": "/ingest/tick"}
+      ],
+      "lines": true
+    },
+    {
+      "type": "graph",
+      "title": "Forwards por status",
+      "gridPos": {"x":0, "y":10, "w":12, "h":6},
+      "targets": [
+        {"expr": "sum(rate(forward_requests_total{endpoint=\"/ingest\"}[1m])) by (status)", "legendFormat": "ingest {{status}}"},
+        {"expr": "sum(rate(forward_requests_total{endpoint=\"/ingest/tick\"}[1m])) by (status)", "legendFormat": "tick {{status}}"}
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "DB writes/s",
+      "gridPos": {"x":0, "y":16, "w":12, "h":6},
+      "targets": [{"expr": "rate(db_writes_total[1m])", "legendFormat": "writes/s"}]
+    }
+  ]
+}

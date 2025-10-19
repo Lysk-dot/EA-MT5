@@ -1,0 +1,122 @@
+
+version: '3.8'
+services:
+  db:
+    image: timescale/timescaledb:2.15.2-pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - ./volumes/db:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # Security: run as non-root, read-only fs, drop capabilities
+    user: 999:999
+    read_only: true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ALLOWED_TOKEN: ${ALLOWED_TOKEN}
+      FORWARD_INGEST_URL: ${FORWARD_INGEST_URL}
+      FORWARD_TICK_URL: ${FORWARD_TICK_URL}
+      FORWARD_TOKEN: ${FORWARD_TOKEN}
+      FORWARD_CONFIRM_URL: ${FORWARD_CONFIRM_URL}
+    ports:
+      - "${APP_PORT}:8000"
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Security: run as non-root, read-only fs, drop capabilities, no-new-privileges
+    user: 1000:1000
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+    ports:
+      - "18010:9187"
+    depends_on:
+      - db
+    user: 1000:1000
+    read_only: true
+    cap_drop:
+      - ALL
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "18011:9090"
+    depends_on:
+      - postgres_exporter
+    user: 1000:1000
+    read_only: true
+    cap_drop:
+      - ALL
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "18012:3000"
+    depends_on:
+      - prometheus
+    user: 1000:1000
+    read_only: true
+    cap_drop:
+      - ALL
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "${PGADMIN_PORT}:80"
+    depends_on:
+      - db
+    user: 1000:1000
+    read_only: true
+    cap_drop:
+      - ALL

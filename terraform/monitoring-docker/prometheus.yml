@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Exemplos de alvos remotos (ajuste IPs/ports)
+  - job_name: 'linux-api'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['192.168.15.20:18001']
+  - job_name: 'linux-postgres'
+    static_configs:
+      - targets: ['192.168.15.20:9187']

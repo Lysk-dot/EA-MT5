@@ -1,0 +1,214 @@
+{
+  "title": "EA Pipeline Health",
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "API Status",
+      "gridPos": {"x":0, "y":0, "w":4, "h":3},
+      "targets": [{
+        "expr": "up{job=\"ea-api\"}",
+        "legendFormat": "API"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "value": "1", "text": "✅ UP"},
+            {"type": "value", "value": "0", "text": "❌ DOWN"}
+          ]
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Database Status",
+      "gridPos": {"x":4, "y":0, "w":4, "h":3},
+      "targets": [{
+        "expr": "up{job=\"postgres\"}",
+        "legendFormat": "DB"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "value": "1", "text": "✅ UP"},
+            {"type": "value", "value": "0", "text": "❌ DOWN"}
+          ]
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Active Symbols (5m)",
+      "gridPos": {"x":8, "y":0, "w":4, "h":3},
+      "targets": [{
+        "expr": "symbols_active_total",
+        "legendFormat": "Symbols"
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Data Age por Símbolo",
+      "gridPos": {"x":0, "y":3, "w":12, "h":6},
+      "targets": [{
+        "expr": "data_age_seconds",
+        "legendFormat": "{{symbol}}"
+      }],
+      "yaxes": [{"format": "s", "label": "Age"}],
+      "alert": {
+        "conditions": [
+          {
+            "evaluator": {"params": [300], "type": "gt"},
+            "operator": {"type": "and"},
+            "query": {"params": ["A", "5m", "now"]},
+            "reducer": {"params": [], "type": "last"},
+            "type": "query"
+          }
+        ],
+        "frequency": "1m",
+        "handler": 1,
+        "name": "Data Age Alert",
+        "message": "Símbolo sem receber dados há mais de 5 minutos"
+      }
+    },
+    {
+      "type": "graph",
+      "title": "Taxa de Duplicatas vs Novos Dados",
+      "gridPos": {"x":0, "y":9, "w":12, "h":6},
+      "targets": [
+        {"expr": "rate(db_writes_total[1m])", "legendFormat": "Novos dados/s"},
+        {"expr": "rate(duplicate_inserts_total[1m])", "legendFormat": "Duplicatas/s"}
+      ],
+      "stack": false
+    },
+    {
+      "type": "stat",
+      "title": "Pendentes de Confirmação",
+      "gridPos": {"x":0, "y":15, "w":6, "h":4},
+      "targets": [{
+        "expr": "pending_forward_total",
+        "legendFormat": "Total"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "green"},
+              {"value": 100, "color": "yellow"},
+              {"value": 1000, "color": "red"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pendentes > 5min",
+      "gridPos": {"x":6, "y":15, "w":6, "h":4},
+      "targets": [{
+        "expr": "pending_forward_older_5m_total",
+        "legendFormat": "Older"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "green"},
+              {"value": 1, "color": "orange"},
+              {"value": 10, "color": "red"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "graph",
+      "title": "Forward Success Rate (%)",
+      "gridPos": {"x":0, "y":19, "w":12, "h":6},
+      "targets": [{
+        "expr": "sum(rate(forward_requests_total{status=~\"2..\"}[5m])) by (endpoint) / sum(rate(forward_requests_total[5m])) by (endpoint) * 100",
+        "legendFormat": "{{endpoint}}"
+      }],
+      "yaxes": [{"format": "percent", "min": 0, "max": 100}]
+    },
+    {
+      "type": "graph",
+      "title": "API Errors por Tipo",
+      "gridPos": {"x":0, "y":25, "w":12, "h":6},
+      "targets": [{
+        "expr": "sum(rate(api_errors_total[5m])) by (endpoint, error_type)",
+        "legendFormat": "{{endpoint}} - {{error_type}}"
+      }]
+    },
+    {
+      "type": "graph",
+      "title": "Latência de Confirmação (p50, p95, p99)",
+      "gridPos": {"x":0, "y":31, "w":12, "h":6},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(forward_confirm_latency_seconds_bucket[5m])) by (le, endpoint))", "legendFormat": "p50 {{endpoint}}"},
+        {"expr": "histogram_quantile(0.95, sum(rate(forward_confirm_latency_seconds_bucket[5m])) by (le, endpoint))", "legendFormat": "p95 {{endpoint}}"},
+        {"expr": "histogram_quantile(0.99, sum(rate(forward_confirm_latency_seconds_bucket[5m])) by (le, endpoint))", "legendFormat": "p99 {{endpoint}}"}
+      ],
+      "yaxes": [{"format": "s"}]
+    },
+    {
+      "type": "graph",
+      "title": "Batch Size Distribution",
+      "gridPos": {"x":0, "y":37, "w":12, "h":6},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(ingest_batch_size_bucket[5m])) by (le))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(ingest_batch_size_bucket[5m])) by (le))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum(rate(ingest_batch_size_bucket[5m])) by (le))", "legendFormat": "p99"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Memory Usage (MB)",
+      "gridPos": {"x":0, "y":43, "w":6, "h":4},
+      "targets": [{
+        "expr": "process_resident_memory_bytes / 1024 / 1024",
+        "legendFormat": "Memory"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "green"},
+              {"value": 300, "color": "yellow"},
+              {"value": 500, "color": "red"}
+            ]
+          },
+          "unit": "MB"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "CPU Usage (%)",
+      "gridPos": {"x":6, "y":43, "w":6, "h":4},
+      "targets": [{
+        "expr": "rate(process_cpu_seconds_total[1m]) * 100",
+        "legendFormat": "CPU"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": 0, "color": "green"},
+              {"value": 50, "color": "yellow"},
+              {"value": 80, "color": "red"}
+            ]
+          },
+          "unit": "percent"
+        }
+      }
+    }
+  ]
+}

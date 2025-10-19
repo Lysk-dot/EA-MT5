@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: 'EA MT5 Dashboards'
+    orgId: 1
+    folder: 'EA Monitoring'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json
+      foldersFromFilesStructure: true

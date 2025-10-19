@@ -1,0 +1,115 @@
+groups:
+- name: pipeline-health
+  rules:
+  - alert: HighForwardErrorRate
+    expr: |
+      (sum(rate(forward_requests_total{status!="200"}[5m])) by (endpoint))
+      /
+      clamp_min(sum(rate(forward_requests_total[5m])) by (endpoint), 1)
+      > 0.1
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Erro de forward alto em {{ $labels.endpoint }}"
+      description: "Mais de 10% de erros de forward nos últimos 10m."
+
+  - alert: PendingConfirmationsOlderThan5m
+    expr: pending_forward_older_5m_total > 0
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Pendências de confirmação acima de 5m"
+      description: "Existem forwards sem confirmação há mais de 5 minutos."
+
+  - alert: LowForwardSuccessRate
+    expr: |
+      sum(rate(forward_requests_total{status="200"}[5m])) by (endpoint)
+      /
+      clamp_min(sum(rate(forward_requests_total[5m])) by (endpoint), 1)
+      < 0.8
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Baixa taxa de sucesso de forward em {{ $labels.endpoint }}"
+      description: "Menos de 80% de sucesso de forward nos últimos 10m."
+
+  - alert: APIHighLatency
+    expr: |
+      histogram_quantile(0.95, sum(rate(api_request_latency_seconds_bucket[5m])) by (le, endpoint)) > 2
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Alta latência na API em {{ $labels.endpoint }}"
+      description: "P95 de latência acima de 2s nos últimos 5m."
+
+  - alert: APIDown
+    expr: up{job="ea-api"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "API está offline"
+      description: "A API não responde há mais de 1 minuto."
+
+  - alert: DatabaseDown
+    expr: up{job="postgres"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Banco de dados está offline"
+      description: "PostgreSQL não responde há mais de 1 minuto."
+
+  - alert: NoDataIngested
+    expr: rate(db_writes_total[5m]) == 0
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Nenhum dado sendo inserido"
+      description: "Sem escritas no banco nos últimos 10m. Verifique se o EA está enviando dados."
+
+  - alert: BatchSizeTooLarge
+    expr: histogram_quantile(0.95, sum(rate(ingest_batch_size_bucket[5m])) by (le)) > 1000
+    for: 5m
+    labels:
+      severity: info
+    annotations:
+      summary: "Batches muito grandes"
+      description: "P95 de batch size acima de 1000 itens. Considere otimizar."
+
+  - alert: HighMemoryUsage
+    expr: process_resident_memory_bytes / 1024 / 1024 > 500
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Alto uso de memória da API"
+      description: "API usando mais de 500MB de memória."
+
+  - alert: ConfirmLatencyHigh
+    expr: |
+      histogram_quantile(0.95, sum(rate(forward_confirm_latency_seconds_bucket[5m])) by (le, endpoint)) > 5
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Alta latência de confirmação em {{ $labels.endpoint }}"
+      description: "Confirmações demorando mais de 5s (p95)."
+
+  - alert: DuplicateDataHigh
+    expr: |
+      (sum(rate(api_requests_total[5m])) - sum(rate(db_writes_total[5m]))) 
+      / 
+      clamp_min(sum(rate(api_requests_total[5m])), 1) 
+      > 0.5
+    for: 10m
+    labels:
+      severity: info
+    annotations:
+      summary: "Alto índice de duplicatas"
+      description: "Mais de 50% dos requests são duplicatas (ON CONFLICT). Normal se EA reenviar dados."
