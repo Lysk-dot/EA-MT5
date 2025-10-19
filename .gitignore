@@ -1,0 +1,27 @@
+# MT5 / MQL5 compiled artifacts
+*.ex5
+*.ex4
+
+# Logs and temp
+logs/
+MQL5/Logs/
+*.log
+*.tmp
+*.bak
+*.cache
+
+# Archives
+*.zip
+*.rar
+*.7z
+
+# OS/editor
+Thumbs.db
+.DS_Store
+*.swp
+.vscode/
+
+# Node/Python (if present)
+node_modules/
+__pycache__/
+*.pyc
