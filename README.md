@@ -1,7 +1,7 @@
-﻿﻿# EA-MT5 - Expert Advisor com Pipeline de Dados
+﻿?# EA-MT5 - Expert Advisor com Pipeline de Dados
 ---
 
-## 📦 Estrutura do Repositório
+## ?? Estrutura do Repositório
 
 ```text
 EA-MT5/
@@ -54,16 +54,16 @@ Expert Advisor profissional para MetaTrader 5 com pipeline completo de dados, AP
 
 ---
 
-## 📖 Documentação Completa
+## ?? Documentação Completa
 
-### ⭐ Comece Aqui:
+### ? Comece Aqui:
 - **[README-COMPLETO.md](docs/README-COMPLETO.md)** - Documentação principal do sistema
 - **[DATA-FLOW.md](docs/DATA-FLOW.md)** - Fluxo de dados detalhado
 - **[INDEX.md](docs/INDEX.md)** - Índice de toda documentação
 
 ---
 
-## 🚀 Quick Start
+## ?? Quick Start
 ```powershell
 # 1. Exportar dados coletados
 cd infra\api\tools
@@ -80,43 +80,43 @@ python query-db.py 1
 
 ---
 
-## 🎯 Visão Geral
+## ?? Visão Geral
 
 Sistema completo de coleta, processamento e análise de dados de mercado:
 
 ```
-MT5 (EA) → SQLite Local → Exportador → PostgreSQL Servidor → Análise SQL
+MT5 (EA)  SQLite Local  Exportador  PostgreSQL Servidor  Análise SQL
 ```
 
 ### Componentes
-- ✅ **EA (MQL5)**: Coleta ticks em tempo real
-- ✅ **API Lite**: Buffer local (SQLite)
-- ✅ **Exporter**: Agregação e envio para servidor
-- ✅ **API Main**: Servidor Linux (PostgreSQL/TimescaleDB)
-- ✅ **Query Tools**: Análise via SQL (VS Code + Python)
+- ? **EA (MQL5)**: Coleta ticks em tempo real
+- ? **API Lite**: Buffer local (SQLite)
+- ? **Exporter**: Agregação e envio para servidor
+- ? **API Main**: Servidor Linux (PostgreSQL/TimescaleDB)
+- ? **Query Tools**: Análise via SQL (VS Code + Python)
 
 ---
 
 ---
 
-## 📊 Status do Sistema
+## ?? Status do Sistema
 
 ```
-✅ EA coletando ticks
-✅ API Local funcionando (porta 18000)
-✅ Dados armazenados em SQLite
-✅ Exportador configurado
-✅ API Servidor rodando (192.168.15.20:18001)
-✅ PostgreSQL armazenando em market_data
-✅ Queries SQL funcionando
-✅ 10+ queries prontas para análise
+? EA coletando ticks
+? API Local funcionando (porta 18000)
+? Dados armazenados em SQLite
+? Exportador configurado
+? API Servidor rodando (192.168.15.20:18001)
+? PostgreSQL armazenando em market_data
+? Queries SQL funcionando
+? 10+ queries prontas para análise
 ```
 
 ---
 
 ---
 
-## 🔧 Ferramentas Disponíveis
+## ?? Ferramentas Disponíveis
 
 ### Scripts Python:
 - `query-db.py` - Executar queries SQL
@@ -141,7 +141,7 @@ MT5 (EA) → SQLite Local → Exportador → PostgreSQL Servidor → Análise SQ
 
 ---
 
-## 🌐 Conexões
+## ?? Conexões
 
 ```
 API Local:    http://localhost:18000
@@ -158,7 +158,7 @@ PostgreSQL:   postgresql://trader:trader123@192.168.15.20:5432/mt5_trading
 
 ---
 
-## ⚙️ Como funciona
+## ?? Como funciona
 	- Timer (minuto): constrói `{ "items": [ ... ] }` com OHLCV + spread + meta e envia em lotes (respeita `MaxItemsPerBatch`) para `API_URL`.
 	- Tick:
 		- TICK_PER_TICK: envia `{ "ticks": [ t ] }` por tick até `Tick_Max_RPS`. Excedente vai para buffer e é enviado em lote.
@@ -168,7 +168,7 @@ PostgreSQL:   postgresql://trader:trader123@192.168.15.20:5432/mt5_trading
 
 ---
 
-## 🗂️ Cópia local (segunda via)
+## ??? Cópia local (segunda via)
 	- Arquivo diário JSONL: `PDC_outbound_YYYYMMDD.jsonl` (pasta FILE_COMMON do MT5)
 	- Linhas por tipo:
 		- {"ts":"...","kind":"items:batch","body":{...}}
@@ -183,7 +183,7 @@ PostgreSQL:   postgresql://trader:trader123@192.168.15.20:5432/mt5_trading
 
 ---
 
-## 📝 Logs e diagnóstico
+## ?? Logs e diagnóstico
 	- Ative `Enable_RealTime_Logging` para mensagens detalhadas no Experts log.
 	- Opções de debug de rede: `Debug_Log_Headers`, `Debug_Log_Body`, `Debug_First_Attempt_Only`, `Debug_Log_Snippet_Chars`.
 	- Mensagens típicas:
@@ -192,32 +192,32 @@ PostgreSQL:   postgresql://trader:trader123@192.168.15.20:5432/mt5_trading
 
 ---
 
-## 💡 Dicas de operação
+## ?? Dicas de operação
 	- Se desejar reduzir tráfego duplicado: `Send_Only_On_Change=true` ou `Skip_Duplicate_TS=true` (o padrão é enviar sempre e o servidor deduplica).
 	- Para testar o throttle de RPS, coloque `Tick_Send_Mode=TICK_PER_TICK` e `Tick_Max_RPS` baixo (ex.: 3). Veja TICK[1] até o limite e TICKBATCH para excedentes.
 
 ---
 
-## 🛠️ Troubleshooting
+## ??? Troubleshooting
 	- `CopyRates retornou -1`: símbolo sem dados no timeframe; é esperado e ignorado no ciclo.
-	- Sem resposta HTTP padrão (`code=0`): compatibilidade com uvicorn; verifique cabeçalhos e corpo — o EA já trata como sucesso se houver corpo.
+	- Sem resposta HTTP padrão (`code=0`): compatibilidade com uvicorn; verifique cabeçalhos e corpo - o EA já trata como sucesso se houver corpo.
 	- WebRequest bloqueado: confirme a whitelist nas opções do MT5.
 
 ---
 
-## 🤖 Automação / Git (resumo)
+## ?? Automação / Git (resumo)
 	- Commits no padrão `X.Y ++` (ex.: `0.11 ++`)
 	- Scripts auxiliares (opcional): auto-commit agendado, whitelisting de WebRequest, notificação por email
 	- Versão no código: macro `PDC_VER` usada em logs/metadados; um script de bump pode atualizar `PDC_VER` e `#property version` automaticamente (+0.01)
 
 ---
 
-## 📄 Licença
+## ?? Licença
 Uso interno.
 
 ---
 
-## 🔒 Licenciamento do EA
+## ?? Licenciamento do EA
 Este EA possui verificação de licença leve no `OnInit`.
 
 ### Inputs
