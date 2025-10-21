@@ -61,7 +61,7 @@ function Invoke-EACompile {
 }
 
 # Main
-try {
+    Move-Item -Path $PSScriptRoot\compile-ea.ps1 -Destination $PSScriptRoot\scripts\compile-ea.ps1
   if (-not (Test-Path $EAPath)) { Write-Host "❌ Arquivo EA não encontrado: $EAPath" -ForegroundColor Red; exit 2 }
   $meta = Get-MetaEditorPath -Hint $MetaEditorPath
   if (-not $meta) { Write-Host "❌ MetaEditor não encontrado. Informe -MetaEditorPath ou instale o MT5/MetaEditor." -ForegroundColor Red; exit 1 }

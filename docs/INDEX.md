@@ -1,25 +1,88 @@
-# EA-MT5 Documentation
+# 🗂️ EA-MT5 Documentation Index
 
 Documentação completa do projeto EA-MT5 (Expert Advisor para MetaTrader 5 com pipeline de dados, API e monitoramento).
+
+## ⭐ DOCUMENTOS PRINCIPAIS (COMECE AQUI)
+
+### 1. [README-COMPLETO.md](./README-COMPLETO.md) 🎯
+**Guia completo do sistema** - Leia primeiro!
+- Visão geral e arquitetura
+- Todos os componentes explicados
+- Configuração passo a passo
+- Uso diário
+- Troubleshooting completo
+
+### 2. [DATA-FLOW.md](./DATA-FLOW.md) 📊
+**Como os dados fluem pelo sistema**
+- MT5 → SQLite Local → PostgreSQL Servidor
+- Comandos de exportação
+- Opções de automação
+
+### 3. [queries/README-COMO-USAR.md](../infra/api/tools/queries/README-COMO-USAR.md) 🔍
+**Guia de análise SQL**
+- Conectar PostgreSQL no VS Code
+- Queries prontas
+- Exportar resultados
+
+---
 
 ## 📁 Estrutura da Documentação
 
 ```
 docs/
+├── INDEX.md                    ← Você está aqui
+├── README-COMPLETO.md          ← ⭐ COMECE AQUI
+├── DATA-FLOW.md                ← Fluxo de dados
 ├── api/
-│   └── STARTUP.md          # Como iniciar a API (com e sem Docker)
+│   ├── MT5-INTEGRATION.md      # Integração MT5 ↔ API
+│   ├── STARTUP.md              # Como iniciar APIs
+│   ├── TRACKING-SYSTEM.md      # Sistema de rastreamento
+│   └── VERIFICATION-REPORT.md  # Relatórios de verificação
 ├── monitoring/
-│   └── MONITORING.md       # Dashboards, alertas, métricas e troubleshooting
+│   └── MONITORING.md           # Dashboards e alertas
 ├── infra/
-│   └── README.md           # Infraestrutura completa (Docker, services)
-└── INDEX.md                # Este arquivo (índice geral)
+│   ├── README.md               # Infraestrutura Docker
+│   ├── BACKUP-REPLICATION.md   # Backup e replicação
+│   ├── SECURITY-HARDENING.md   # Segurança
+│   └── MARKET-ACTIVITY-ANALYSIS.md
+├── scripts/
+│   ├── AUTOMATION.md           # Scripts de automação
+│   └── README.md
+└── CHANGELOG-TRACKING.md       # Histórico de mudanças
+
+infra/api/tools/
+├── queries/
+│   ├── README-COMO-USAR.md           ← Guia SQL
+│   ├── MT5-Trading-Analysis.sql      ← 10 queries prontas
+│   ├── 01-verificacao-basica.sql
+│   ├── 02-analise-volume.sql
+│   └── 03-monitoramento-pipeline.sql
+├── export_to_main.py                 ← Exportador de dados
+├── query-db.py                       ← Query tool Python
+├── query.ps1                         ← Wrapper PowerShell
+├── run-exporter.ps1                  ← Executar export
+└── run-verify-sql.ps1                ← Verificar sistema
 ```
 
 ## 🚀 Quick Start
 
-1. **Instalar dependências**: Ver [infra/README.md](infra/README.md)
-2. **Iniciar API**: Ver [api/STARTUP.md](api/STARTUP.md)
-3. **Configurar monitoramento**: Ver [monitoring/MONITORING.md](monitoring/MONITORING.md)
+### Para Iniciantes:
+1. Leia [README-COMPLETO.md](./README-COMPLETO.md)
+2. Configure VS Code: [vscode-postgres-setup.md](../infra/api/tools/vscode-postgres-setup.md)
+3. Execute primeira query: `python infra\api\tools\query-db.py 1`
+
+### Para Uso Diário:
+```powershell
+# Exportar dados coletados
+cd infra\api\tools
+.\run-exporter.ps1
+
+# Ver dados no servidor
+python query-db.py 1
+
+# Verificar saúde do sistema
+.\run-verify-sql.ps1
+```
 
 ## 📚 Documentos Principais
 
@@ -76,6 +139,41 @@ docs/
 - Hypertables para performance
 - Índices otimizados
 - Audit de forwards
+
+## 🗂️ Scripts PowerShell Organizados
+
+Todos os scripts `.ps1` que estavam na raiz do repositório foram migrados para a pasta `scripts/` para melhor organização.
+
+**Lista de scripts migrados:**
+- auto-commit.ps1
+- bump-version.ps1
+- compile-ea.ps1
+- generate-license.ps1
+- manage-observability.ps1
+- monitor-mt5-journal.ps1
+- move-repo-to-mql5.ps1
+- notify-push-email.ps1
+- query-observability.ps1
+- quick-license.ps1
+- release-bump.ps1
+- repo-health.ps1
+- rollback-version.ps1
+- setup-autocommit.ps1
+- setup-grafana-dashboards.ps1
+- setup-precommit.ps1
+- sync-mt5-webrequest.ps1
+- verify-ea-data.ps1
+- write-structured-log.ps1
+
+**Como usar:**
+Execute os scripts diretamente da pasta `scripts/`:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\compile-ea.ps1
+```
+
+> Os scripts originais na raiz agora apenas redirecionam para a versão organizada.
+
+Consulte também `docs/scripts/README.md` para detalhes e recomendações.
 
 ## 🔗 Links Úteis
 

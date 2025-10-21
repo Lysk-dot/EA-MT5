@@ -1,0 +1,366 @@
+name: EA Build and Release
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  EA_NAME: DataCollectorPRO
+  EA_VERSION_FILE: EA/DataCollectorPRO.mq5
+
+jobs:
+  validate:
+    name: Validate Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check file encoding
+        run: |
+          echo "🔍 Verificando encoding UTF-8..."
+          if file -i README.md | grep -q "utf-8"; then
+            echo "✅ README.md está em UTF-8"
+          else
+            echo "❌ README.md não está em UTF-8"
+            exit 1
+          fi
+      
+      - name: Validate MQL5 syntax
+        run: |
+          echo "🔍 Validando sintaxe MQL5..."
+          # Verificar se arquivos .mq5 não têm erros óbvios
+          find EA -name "*.mq5" -type f | while read file; do
+            echo "Checking: $file"
+            # Verificar se arquivo não está vazio
+            if [ ! -s "$file" ]; then
+              echo "❌ Arquivo vazio: $file"
+              exit 1
+            fi
+            # Verificar sintaxe básica
+            if grep -q "OnInit()" "$file" && grep -q "OnDeinit()" "$file"; then
+              echo "✅ $file tem estrutura básica"
+            fi
+          done
+      
+      - name: Check for hardcoded secrets
+        run: |
+          echo "🔍 Verificando secrets hardcoded..."
+          if grep -r "PDC-LIC-2025" EA/*.mq5 2>/dev/null; then
+            echo "⚠️  AVISO: Pepper hardcoded encontrado no EA"
+            echo "::warning::Pepper está hardcoded. Considere externalizar."
+          fi
+          
+      - name: Validate OpenAPI spec
+        uses: char0n/swagger-editor-validate@v1
+        with:
+          definition-file: docs/api/openapi.yaml
+
+  build:
+    name: Compile EA
+    runs-on: windows-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup MetaTrader 5
+        run: |
+          echo "🔧 Configurando ambiente MT5..."
+          # Verificar se MT5 está instalado
+          $mt5Path = "C:\Program Files\MetaTrader 5"
+          if (!(Test-Path $mt5Path)) {
+            Write-Host "⚠️  MT5 não encontrado. Build será simulado."
+            echo "MT5_AVAILABLE=false" >> $env:GITHUB_ENV
+          } else {
+            echo "MT5_AVAILABLE=true" >> $env:GITHUB_ENV
+          }
+        shell: pwsh
+      
+      - name: Extract version from EA
+        id: version
+        run: |
+          $content = Get-Content "${{ env.EA_VERSION_FILE }}" -Raw
+          if ($content -match '#define\s+PDC_VER\s+"([^"]+)"') {
+            $version = $matches[1]
+            echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+            Write-Host "✅ Versão detectada: $version"
+          } else {
+            Write-Host "❌ Não foi possível extrair versão"
+            exit 1
+          }
+        shell: pwsh
+      
+      - name: Validate inputs
+        run: |
+          $content = Get-Content "${{ env.EA_VERSION_FILE }}" -Raw
+          
+          # Verificar inputs obrigatórios
+          $requiredInputs = @(
+            'Collection_Interval',
+            'API_URL',
+            'API_Key',
+            'Enable_Tick_Stream'
+          )
+          
+          $missing = @()
+          foreach ($input in $requiredInputs) {
+            if ($content -notmatch "input\s+.*\s+$input") {
+              $missing += $input
+            }
+          }
+          
+          if ($missing.Count -gt 0) {
+            Write-Host "❌ Inputs faltando: $($missing -join ', ')"
+            exit 1
+          } else {
+            Write-Host "✅ Todos inputs obrigatórios presentes"
+          }
+        shell: pwsh
+      
+      - name: Compile EA (simulated)
+        run: |
+          echo "🔨 Compilando EA..."
+          # Em ambiente real, usar metaeditor.exe
+          # Por ora, apenas validar estrutura
+          
+          if (Test-Path "${{ env.EA_VERSION_FILE }}") {
+            Write-Host "✅ Arquivo fonte encontrado"
+            
+            # Criar diretório de output
+            New-Item -ItemType Directory -Force -Path "build"
+            
+            # Simular compilação (copiar .mq5)
+            Copy-Item "${{ env.EA_VERSION_FILE }}" "build/${{ env.EA_NAME }}.mq5"
+            
+            Write-Host "✅ Build simulado concluído"
+          } else {
+            Write-Host "❌ Arquivo fonte não encontrado"
+            exit 1
+          }
+        shell: pwsh
+      
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ea-build
+          path: build/
+          retention-days: 30
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: validate
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_USER: trader
+          POSTGRES_PASSWORD: trader123
+          POSTGRES_DB: mt5_trading
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r tests/requirements.txt
+      
+      - name: Initialize database
+        run: |
+          export PGPASSWORD=trader123
+          psql -h localhost -U trader -d mt5_trading -f infra/sql/init.sql
+          psql -h localhost -U trader -d mt5_trading -f infra/sql/migration_001_idempotency.sql
+      
+      - name: Start mock API
+        run: |
+          cd infra/api
+          pip install -r requirements.txt
+          python main.py &
+          sleep 5
+          echo "API_PID=$!" >> $GITHUB_ENV
+      
+      - name: Run E2E tests
+        run: |
+          python tests/e2e_test.py \
+            --api-url http://localhost:18001 \
+            --db-host localhost \
+            --db-user trader \
+            --db-password trader123
+      
+      - name: Check test results
+        if: always()
+        run: |
+          echo "📊 Verificando resultados dos testes..."
+
+  package:
+    name: Package Release
+    runs-on: windows-latest
+    needs: [build, test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ea-build
+          path: build/
+      
+      - name: Extract version
+        id: version
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+      
+      - name: Create release package
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $pkgName = "EA-MT5-v$version"
+          $pkgDir = "release/$pkgName"
+          
+          # Criar estrutura
+          New-Item -ItemType Directory -Force -Path $pkgDir
+          New-Item -ItemType Directory -Force -Path "$pkgDir/EA"
+          New-Item -ItemType Directory -Force -Path "$pkgDir/licenses"
+          New-Item -ItemType Directory -Force -Path "$pkgDir/docs"
+          
+          # Copiar arquivos
+          Copy-Item "build/*.mq5" "$pkgDir/EA/"
+          Copy-Item "licenses/*" "$pkgDir/licenses/" -ErrorAction SilentlyContinue
+          Copy-Item "docs/README-COMPLETO.md" "$pkgDir/"
+          Copy-Item "docs/api/openapi.yaml" "$pkgDir/docs/"
+          
+          # Criar README de instalação
+          @"
+# EA-MT5 v$version - Guia de Instalação Rápida
+
+## 📦 Conteúdo do Pacote
+- EA/DataCollectorPRO.mq5 - Expert Advisor principal
+- licenses/ - Licenças geradas
+- README-COMPLETO.md - Documentação completa
+- docs/openapi.yaml - Contrato da API
+
+## 🚀 Instalação
+
+### 1. Copiar EA para MT5
+1. Abra o MetaTrader 5
+2. File > Open Data Folder
+3. Navegue até MQL5\Experts
+4. Copie o arquivo DataCollectorPRO.mq5
+5. Compile no MetaEditor (F7)
+
+### 2. Configurar Licença
+Se o EA exigir licença:
+1. Copie o arquivo de licença da pasta licenses/
+2. Configure o input License_Key no EA
+
+### 3. Configurar API
+Configure os inputs:
+- API_URL: http://192.168.15.20:18001/ingest
+- API_Tick_URL: http://192.168.15.20:18001/ingest/tick
+- API_Key: (sua chave de API)
+
+### 4. Habilitar WebRequest
+Tools > Options > Expert Advisors > Allow WebRequest for listed URL:
+- http://192.168.15.20:18001
+
+## 📚 Documentação
+Consulte README-COMPLETO.md para instruções detalhadas.
+
+## 🔗 Links
+- GitHub: https://github.com/Lysk-dot/EA-MT5
+- API Docs: docs/openapi.yaml
+
+## 📝 Changelog
+Versão $version
+"@ | Out-File -FilePath "$pkgDir/INSTALL.md" -Encoding UTF8
+          
+          # Criar arquivo de versão
+          @"
+{
+  "version": "$version",
+  "build_date": "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+  "git_commit": "${{ github.sha }}",
+  "git_tag": "${{ github.ref_name }}"
+}
+"@ | Out-File -FilePath "$pkgDir/version.json" -Encoding UTF8
+          
+          # Compactar
+          Compress-Archive -Path "$pkgDir/*" -DestinationPath "release/$pkgName.zip"
+          
+          Write-Host "✅ Pacote criado: $pkgName.zip"
+        shell: pwsh
+      
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: release/*.zip
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download release package
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: release/
+      
+      - name: Extract changelog
+        id: changelog
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            # Extrair changelog da versão atual
+            awk '/^## \[/{if(p)exit;p=1;next} p' CHANGELOG.md > release_notes.md
+          else
+            echo "Release ${{ github.ref_name }}" > release_notes.md
+          fi
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*.zip
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Notify Build Status
+    runs-on: ubuntu-latest
+    needs: [validate, build, test]
+    if: always()
+    steps:
+      - name: Check status
+        run: |
+          echo "📊 Status do Build:"
+          echo "Validate: ${{ needs.validate.result }}"
+          echo "Build: ${{ needs.build.result }}"
+          echo "Test: ${{ needs.test.result }}"

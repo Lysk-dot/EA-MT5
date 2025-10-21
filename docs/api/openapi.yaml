@@ -1,0 +1,680 @@
+openapi: 3.0.3
+info:
+  title: EA-MT5 Data Ingestion API
+  description: |
+    API REST para ingestão de dados OHLCV e ticks do MetaTrader 5.
+    
+    ## Características
+    - Idempotência forte por chave (symbol, timeframe, timestamp)
+    - Rate limiting: 100 req/s por IP
+    - Payload máximo: 10MB
+    - Batching recomendado: até 500 items/ticks por request
+    
+    ## Autenticação
+    Envie a chave de API no header `X-API-Key` ou Bearer token em `Authorization`.
+    
+  version: 1.0.0
+  contact:
+    name: EA-MT5 Support
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://192.168.15.20:18001
+    description: Servidor de produção (LAN)
+  - url: http://127.0.0.1:18001
+    description: Edge Relay (localhost)
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+paths:
+  /ingest:
+    post:
+      summary: Ingerir dados OHLCV
+      description: |
+        Recebe lotes de barras OHLCV do MetaTrader 5.
+        
+        **Idempotência**: requisições com mesma chave (symbol, timeframe, ts) são deduplicadas.
+        Retorna 409 Conflict se já existir, mas isso é considerado sucesso.
+        
+        **Limites**:
+        - Máximo 500 items por batch (recomendado)
+        - Payload máximo: 10MB
+        - Rate limit: 100 req/s
+        
+      operationId: ingestOHLCV
+      tags:
+        - Ingest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestBatchRequest'
+            examples:
+              single:
+                summary: Single item
+                value:
+                  items:
+                    - symbol: EURUSD
+                      timeframe: H1
+                      ts: "2025-10-20T14:00:00Z"
+                      open: 1.0950
+                      high: 1.0965
+                      low: 1.0945
+                      close: 1.0960
+                      tick_volume: 1234
+                      real_volume: 5678.5
+                      spread: 2
+                      source: MT5
+                      ea_version: "1.65"
+                      collection_mode: TIMER
+              batch:
+                summary: Batch of 3 items
+                value:
+                  items:
+                    - symbol: EURUSD
+                      timeframe: M1
+                      ts: "2025-10-20T14:00:00Z"
+                      open: 1.0950
+                      high: 1.0952
+                      low: 1.0949
+                      close: 1.0951
+                      tick_volume: 45
+                      real_volume: 123.4
+                      spread: 2
+                      source: MT5
+                      ea_version: "1.65"
+                      collection_mode: TIMER
+                    - symbol: GBPUSD
+                      timeframe: M1
+                      ts: "2025-10-20T14:00:00Z"
+                      open: 1.2650
+                      high: 1.2655
+                      low: 1.2648
+                      close: 1.2653
+                      tick_volume: 67
+                      real_volume: 234.5
+                      spread: 3
+                      source: MT5
+                      ea_version: "1.65"
+                      collection_mode: TIMER
+                    - symbol: USDJPY
+                      timeframe: M1
+                      ts: "2025-10-20T14:00:00Z"
+                      open: 149.50
+                      high: 149.55
+                      low: 149.48
+                      close: 149.52
+                      tick_volume: 89
+                      real_volume: 345.6
+                      spread: 1
+                      source: MT5
+                      ea_version: "1.65"
+                      collection_mode: TIMER
+      responses:
+        '200':
+          description: Sucesso - todos os items foram processados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+              examples:
+                success:
+                  value:
+                    ok: true
+                    inserted: 3
+                    duplicates: 0
+                    errors: 0
+        '207':
+          description: Multi-Status - alguns items falharam
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+              examples:
+                partial:
+                  value:
+                    ok: true
+                    inserted: 2
+                    duplicates: 1
+                    errors: 0
+        '400':
+          description: Bad Request - payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value:
+                    error: "Invalid JSON payload"
+                    code: "INVALID_PAYLOAD"
+                missing_field:
+                  value:
+                    error: "Missing required field: symbol"
+                    code: "VALIDATION_ERROR"
+                    details:
+                      field: symbol
+                      index: 2
+        '401':
+          description: Não autorizado - API key inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_key:
+                  value:
+                    error: "API key required"
+                    code: "UNAUTHORIZED"
+                invalid_key:
+                  value:
+                    error: "Invalid API key"
+                    code: "INVALID_KEY"
+        '409':
+          description: Conflict - item duplicado (idempotência, tratar como sucesso)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+              examples:
+                duplicate:
+                  value:
+                    ok: true
+                    inserted: 0
+                    duplicates: 1
+                    errors: 0
+                    message: "Duplicate key detected, ignored"
+        '413':
+          description: Payload Too Large - excedeu 10MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                too_large:
+                  value:
+                    error: "Payload exceeds 10MB limit"
+                    code: "PAYLOAD_TOO_LARGE"
+                    max_size_mb: 10
+        '429':
+          description: Too Many Requests - rate limit excedido
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Segundos até poder tentar novamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limit:
+                  value:
+                    error: "Rate limit exceeded"
+                    code: "RATE_LIMIT"
+                    limit: 100
+                    window: "1s"
+                    retry_after: 5
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                database_error:
+                  value:
+                    error: "Database connection failed"
+                    code: "INTERNAL_ERROR"
+        '503':
+          description: Service Unavailable - servidor temporariamente indisponível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                maintenance:
+                  value:
+                    error: "Service temporarily unavailable"
+                    code: "SERVICE_UNAVAILABLE"
+
+  /ingest/tick:
+    post:
+      summary: Ingerir ticks em tempo real
+      description: |
+        Recebe lotes de ticks do MetaTrader 5.
+        
+        **Idempotência**: ticks com mesmo (symbol, time_msc) são deduplicados.
+        
+        **Limites**:
+        - Máximo 200 ticks por batch (recomendado)
+        - Payload máximo: 5MB
+        - Rate limit: 200 req/s (maior que /ingest devido a frequência)
+        
+      operationId: ingestTicks
+      tags:
+        - Ingest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestTicksRequest'
+            examples:
+              single_tick:
+                summary: Single tick
+                value:
+                  ticks:
+                    - symbol: EURUSD
+                      time: "2025-10-20T14:23:45.123Z"
+                      time_msc: 1729433025123
+                      bid: 1.0950
+                      ask: 1.0952
+                      last: 1.0951
+                      volume: 100
+                      flags: 6
+                      source: MT5
+                      ea_version: "1.65"
+              batch_ticks:
+                summary: Batch of ticks
+                value:
+                  ticks:
+                    - symbol: EURUSD
+                      time: "2025-10-20T14:23:45.123Z"
+                      time_msc: 1729433025123
+                      bid: 1.0950
+                      ask: 1.0952
+                      last: 1.0951
+                      volume: 100
+                      flags: 6
+                      source: MT5
+                      ea_version: "1.65"
+                    - symbol: EURUSD
+                      time: "2025-10-20T14:23:45.234Z"
+                      time_msc: 1729433025234
+                      bid: 1.0951
+                      ask: 1.0953
+                      last: 1.0952
+                      volume: 150
+                      flags: 6
+                      source: MT5
+                      ea_version: "1.65"
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+              examples:
+                success:
+                  value:
+                    ok: true
+                    inserted: 2
+                    duplicates: 0
+                    errors: 0
+        '207':
+          description: Multi-Status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+        '400':
+          $ref: '#/paths/~1ingest/post/responses/400'
+        '401':
+          $ref: '#/paths/~1ingest/post/responses/401'
+        '409':
+          $ref: '#/paths/~1ingest/post/responses/409'
+        '413':
+          description: Payload Too Large - excedeu 5MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                too_large:
+                  value:
+                    error: "Payload exceeds 5MB limit"
+                    code: "PAYLOAD_TOO_LARGE"
+                    max_size_mb: 5
+        '429':
+          description: Too Many Requests - rate limit 200 req/s excedido
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limit:
+                  value:
+                    error: "Rate limit exceeded"
+                    code: "RATE_LIMIT"
+                    limit: 200
+                    window: "1s"
+                    retry_after: 3
+        '500':
+          $ref: '#/paths/~1ingest/post/responses/500'
+        '503':
+          $ref: '#/paths/~1ingest/post/responses/503'
+
+  /health:
+    get:
+      summary: Health check
+      description: Verifica status da API e dependências
+      operationId: healthCheck
+      tags:
+        - System
+      security: []
+      responses:
+        '200':
+          description: Sistema saudável
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  value:
+                    status: healthy
+                    timestamp: "2025-10-20T14:23:45.123Z"
+                    version: "1.0.0"
+                    dependencies:
+                      database: ok
+                      cache: ok
+        '503':
+          description: Sistema degradado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                degraded:
+                  value:
+                    status: degraded
+                    timestamp: "2025-10-20T14:23:45.123Z"
+                    version: "1.0.0"
+                    dependencies:
+                      database: error
+                      cache: ok
+                    errors:
+                      - "Database connection timeout"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key do EA (configurado em EA inputs)
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer token alternativo
+
+  schemas:
+    IngestBatchRequest:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/OHLCVItem'
+      example:
+        items:
+          - symbol: EURUSD
+            timeframe: M1
+            ts: "2025-10-20T14:00:00Z"
+            open: 1.0950
+            high: 1.0952
+            low: 1.0949
+            close: 1.0951
+            tick_volume: 45
+            real_volume: 123.4
+            spread: 2
+
+    OHLCVItem:
+      type: object
+      required:
+        - symbol
+        - timeframe
+        - ts
+        - open
+        - high
+        - low
+        - close
+      properties:
+        symbol:
+          type: string
+          description: Par ou ativo (ex. EURUSD, BTCUSD)
+          minLength: 1
+          maxLength: 20
+          example: EURUSD
+        timeframe:
+          type: string
+          enum: [M1, M5, M15, M30, H1, H4, D1, W1, MN1]
+          description: Período da barra
+          example: M1
+        ts:
+          type: string
+          format: date-time
+          description: Timestamp da barra (ISO 8601)
+          example: "2025-10-20T14:00:00Z"
+        open:
+          type: number
+          format: double
+          description: Preço de abertura
+          example: 1.0950
+        high:
+          type: number
+          format: double
+          description: Preço máximo
+          example: 1.0965
+        low:
+          type: number
+          format: double
+          description: Preço mínimo
+          example: 1.0945
+        close:
+          type: number
+          format: double
+          description: Preço de fechamento
+          example: 1.0960
+        tick_volume:
+          type: integer
+          format: int64
+          description: Volume em ticks
+          minimum: 0
+          example: 1234
+        real_volume:
+          type: number
+          format: double
+          description: Volume real negociado (opcional)
+          minimum: 0
+          example: 5678.5
+        spread:
+          type: integer
+          description: Spread em points
+          minimum: 0
+          example: 2
+        source:
+          type: string
+          description: Origem dos dados
+          default: MT5
+          example: MT5
+        ea_version:
+          type: string
+          description: Versão do EA
+          example: "1.65"
+        collection_mode:
+          type: string
+          enum: [TIMER, ONTICK, MANUAL]
+          description: Modo de coleta
+          default: TIMER
+          example: TIMER
+
+    IngestTicksRequest:
+      type: object
+      required:
+        - ticks
+      properties:
+        ticks:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/TickItem'
+
+    TickItem:
+      type: object
+      required:
+        - symbol
+        - time
+        - time_msc
+        - bid
+        - ask
+      properties:
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 20
+          example: EURUSD
+        time:
+          type: string
+          format: date-time
+          description: Timestamp do tick (ISO 8601)
+          example: "2025-10-20T14:23:45.123Z"
+        time_msc:
+          type: integer
+          format: int64
+          description: Timestamp em milissegundos (epoch)
+          example: 1729433025123
+        bid:
+          type: number
+          format: double
+          description: Preço de compra
+          example: 1.0950
+        ask:
+          type: number
+          format: double
+          description: Preço de venda
+          example: 1.0952
+        last:
+          type: number
+          format: double
+          description: Último preço negociado (opcional)
+          example: 1.0951
+        volume:
+          type: integer
+          format: int64
+          description: Volume do tick
+          minimum: 0
+          example: 100
+        flags:
+          type: integer
+          description: Flags do tick (MT5)
+          example: 6
+        source:
+          type: string
+          default: MT5
+          example: MT5
+        ea_version:
+          type: string
+          example: "1.65"
+
+    IngestResponse:
+      type: object
+      required:
+        - ok
+        - inserted
+      properties:
+        ok:
+          type: boolean
+          description: Status geral da operação
+          example: true
+        inserted:
+          type: integer
+          description: Quantidade de registros inseridos
+          example: 3
+        duplicates:
+          type: integer
+          description: Quantidade de duplicados (ignorados por idempotência)
+          example: 0
+        errors:
+          type: integer
+          description: Quantidade de erros
+          example: 0
+        message:
+          type: string
+          description: Mensagem adicional
+          example: "All items processed successfully"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - code
+      properties:
+        error:
+          type: string
+          description: Mensagem de erro legível
+          example: "Invalid JSON payload"
+        code:
+          type: string
+          description: Código de erro (para tratamento programático)
+          example: "INVALID_PAYLOAD"
+        details:
+          type: object
+          description: Detalhes adicionais do erro
+          additionalProperties: true
+        retry_after:
+          type: integer
+          description: Segundos até poder tentar novamente (rate limit)
+          example: 5
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-10-20T14:23:45.123Z"
+        version:
+          type: string
+          example: "1.0.0"
+        dependencies:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            database: ok
+            cache: ok
+        errors:
+          type: array
+          items:
+            type: string
+          example:
+            - "Database connection timeout"
+
+tags:
+  - name: Ingest
+    description: Endpoints de ingestão de dados
+  - name: System
+    description: Endpoints de sistema e monitoramento

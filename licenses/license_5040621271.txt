@@ -1,5 +1,5 @@
 ﻿========================================
-LicenÃ§a DataCollectorPRO EA
+Licença DataCollectorPRO EA
 ========================================
 
 Conta MT5:    5040621271
@@ -8,19 +8,19 @@ Expira em:    2035-10-16
 Validade:     3650 dias
 
 ========================================
-CHAVE DE LICENÃ‡A
+CHAVE DE LICENÇA
 ========================================
 
 PDC|5040621271|20351016|811C9DBB
 
 ========================================
-INSTRUÃ‡Ã•ES DE USO
+INSTRUÇÕES DE USO
 ========================================
 
 1. Copie a chave acima
 
 2. No MetaTrader 5:
-   - BotÃ£o direito no grÃ¡fico â†’ Expert Advisors â†’ DataCollectorPRO â†’ Propriedades
+   - Botão direito no gráfico → Expert Advisors → DataCollectorPRO → Propriedades
    - Aba 'Inputs'
    - License_Key: Cole a chave
    - License_Enabled: true
@@ -29,22 +29,22 @@ INSTRUÃ‡Ã•ES DE USO
 
 3. Verificar nos logs:
    Deve aparecer: "=== INICIALIZANDO PDC v1.65 ==="
-   Se aparecer erro de licenÃ§a, verifique:
-   - Chave copiada corretamente (sem espaÃ§os)
-   - NÃºmero da conta correto
-   - Data nÃ£o expirada
+   Se aparecer erro de licença, verifique:
+   - Chave copiada corretamente (sem espaços)
+   - Número da conta correto
+   - Data não expirada
 
 ========================================
-RENOVAÃ‡ÃƒO
+RENOVAÇÃO
 ========================================
 
-Para renovar, gere nova licenÃ§a:
+Para renovar, gere nova licença:
 .\generate-license.ps1 -AccountNumber 5040621271 -ExpirationDays 365
 
-Para licenÃ§a perpÃ©tua (50 anos):
+Para licença perpétua (50 anos):
 .\generate-license.ps1 -AccountNumber 5040621271 -ExpirationDays 18250
 
-Para data especÃ­fica:
+Para data específica:
 .\generate-license.ps1 -AccountNumber 5040621271 -ExpirationDate "20261231"
 
 ========================================
@@ -53,6 +53,6 @@ SUPORTE
 
 Em caso de problemas:
 1. Verifique logs do EA no MetaTrader 5
-2. Confirme nÃºmero da conta: AccountInfoInteger(ACCOUNT_LOGIN)
+2. Confirme número da conta: AccountInfoInteger(ACCOUNT_LOGIN)
 3. Verifique data do sistema
 

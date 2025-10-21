@@ -1,8 +1,12 @@
+##############################################
 # MT5 / MQL5 compiled artifacts
+##############################################
 *.ex5
 *.ex4
 
+##############################################
 # Logs and temp
+##############################################
 logs/
 MQL5/Logs/
 *.log
@@ -10,18 +14,89 @@ MQL5/Logs/
 *.bak
 *.cache
 
+##############################################
 # Archives
+##############################################
 *.zip
 *.rar
 *.7z
 
-# OS/editor
+##############################################
+# OS / Editor / IDE
+##############################################
 Thumbs.db
 .DS_Store
+desktop.ini
 *.swp
 .vscode/
+.idea/
+.history/
+.vs/
 
-# Node/Python (if present)
+##############################################
+# Node / JavaScript package installs
+##############################################
 node_modules/
+.pnpm-store/
+
+##############################################
+# Python caches and environments (libraries)
+##############################################
 __pycache__/
 *.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+*.env
+
+##############################################
+# Infra: local data, queues, state files
+##############################################
+# SQLite databases and journals
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*-wal
+**/*-shm
+infra/api/data/
+
+# Relay queue (file-based)
+infra/edge-relay/queue/
+
+# Environment files anywhere under infra
+infra/**/.env
+
+# Terraform local state
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+terraform.tfstate.d/
+
+##############################################
+# Notebooks / misc
+##############################################
+.ipynb_checkpoints/
+
+##############################################
+# Secrets and sensitive configuration
+##############################################
+# License pepper and secrets
+config/license.conf
+config/*.conf
+secrets.ps1
+secrets/
+*pepper*.txt
+*secret*.txt
+
+# Generated license keys
+licenses/*.txt

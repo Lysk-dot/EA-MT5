@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  edge-relay:
+    build: .
+    environment:
+      REMOTE_INGEST: ${REMOTE_INGEST:-http://192.168.15.20:18001/ingest}
+      REMOTE_TICK: ${REMOTE_TICK:-http://192.168.15.20:18001/ingest/tick}
+      REMOTE_TOKEN: ${REMOTE_TOKEN:-changeme}
+    ports:
+      - "18001:8000"
+    volumes:
+      - ./queue:/app/queue
+    restart: unless-stopped

@@ -59,7 +59,10 @@ $LatestFile = Get-ChildItem -Path $DataFolder -Filter $Pattern -File |
     Where-Object { $_.Name -notmatch 'Obsoleto' } |
     Sort-Object Name -Descending | 
     Select-Object -First 1
-
+    Set-StrictMode -Version Latest
+    <#
+         This script has been moved to the scripts/ folder for better organization.
+    #>
 if (-not $LatestFile) {
     Write-Error "Nenhum arquivo $Pattern encontrado em $DataFolder"
 }

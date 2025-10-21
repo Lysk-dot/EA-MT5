@@ -43,3 +43,18 @@ if ($alerts.Count -gt 0) {
 } else {
   Write-Host "Nenhum erro encontrado nas últimas $LookbackMinutes minutos." -ForegroundColor DarkGray
 }
+ 
+ # Moved to scripts folder
+ # (c) 2025 Felipe Petracco Carmo <kuramopr@gmail.com>. Proprietary. Todos os direitos reservados.
+ [CmdletBinding()]
+ param(
+   [string]$JournalPath = "$env:APPDATA\MetaQuotes\Terminal\D36DE9E413048DE15F2CEE9B72F26E48\Logs",
+   [string]$SmtpServer = 'smtp.seudominio.com',
+   [int]$SmtpPort = 587,
+   [string]$From = 'alerta@seudominio.com',
+   [string]$To = 'seu@email.com',
+   [string]$SmtpUser = 'alerta@seudominio.com',
+   [string]$SmtpPass = 'SENHA_AQUI',
+   [string[]]$Keywords = @('error', 'fail', 'exception'),
+   [int]$LookbackMinutes = 10
+ )

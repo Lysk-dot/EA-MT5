@@ -25,7 +25,7 @@ Write-Host "Gerando licença para conta: $accountNum" -ForegroundColor Yellow
 Write-Host ""
 
 # Executar gerador principal
-$scriptPath = Join-Path $PSScriptRoot "generate-license.ps1"
+$scriptPath = Join-Path $PSScriptRoot "scripts/generate-license.ps1"
 if (Test-Path $scriptPath) {
     & $scriptPath -AccountNumber $accountNum -ExpirationDays 3650
 } else {
